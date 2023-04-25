@@ -61,6 +61,8 @@ async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             # monitor exception using Rollbar
             print("Error asking ChatGPT", e)
+            await context.bot.send_message(chat_id=update.message.chat.id, text="Some Error Occurred!",parse_mode='MARKDOWN')
+            await stop(update,context)
 
 #All Commands and Listeners
 def main() -> None:
