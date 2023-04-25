@@ -11,6 +11,14 @@ openai.api_key = os.environ.get('OPENAI_API_KEY')
 from telegram import InputMediaAudio, InputMediaVideo, Update, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from telegram_user_configs import message_history
+
+def update_data(message_history):
+    file = open ('telegram_user_configs.py', 'w')
+    file.write("message_history = {}" .format(message_history))
+    file.close()
+    return "User configuration Updated"
+
 # Define a function that sends a message to ChatGPT and gets a response
 def ask_chatgpt(message_history):
     response = openai.ChatCompletion.create(
@@ -26,6 +34,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     activeuser = update.effective_user
     print(activeuser)
     print(update.message['text']+" - Bot is already running!")
+    chatid = update.effective_user.id
+    if (chatid in message_history)==False:
+        new = [{"role": "system", "content": "You are a helpful assistant with exciting, interesting things to say."}]
+        message_history[chatid] = new
+        update_data(message_history)
     await update.message.reply_html(
         rf"Dear {activeuser.mention_html()}, Bot is active, Send Messages continuously to chat.", reply_markup=ReplyKeyboardRemove(selective=True))
 
@@ -35,29 +48,43 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     activeuser = update.effective_user
     print(activeuser)
-    FLAG = 1
     print(update.message['text']+" - Resetting The System...")
-    message_history = [
+    chatid = update.effective_user.id
+    message_history[chatid] = [
                 {"role": "system", "content": "You are a helpful assistant with exciting, interesting things to say."}]
+    update_data(message_history)
     await update.message.reply_html(
         rf"Dear {activeuser.mention_html()}, Chat is Reset, You can continue asking new things.", reply_markup=ReplyKeyboardRemove(selective=True))
 
-message_history = [
-                {"role": "system", "content": "You are a helpful assistant with exciting, interesting things to say."}]
+
 
 async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     endlist=['stop', 'halt', 'quit', 'exit', 'end', 'cancel', 'close', 'finish', 'bye', 'goodbye', 'farewell', 'done']
     msg = update.message.text
+    chatid = update.effective_user.id
+    print(str(chatid) + ":" + msg)
     if msg.lower() in endlist:
         await stop(update,context)
     else:      
         try:
-            prompt = {"role": "user", "content": msg}
-            message_history.append(prompt)
-            response = ask_chatgpt(message_history)
-            print(response['content'])
-            await context.bot.send_message(chat_id=update.message.chat.id, text="{}".format(response['content']),parse_mode='MARKDOWN')
-            message_history.append(response)
+            if chatid in message_history:
+                prompt = {"role": "user", "content": msg}
+                message_history[chatid].append(prompt)
+                response = ask_chatgpt(message_history[chatid])
+                print(response['content'])
+                await context.bot.send_message(chat_id=update.message.chat.id, text="{}".format(response['content']),parse_mode='MARKDOWN')
+                message_history[chatid].append(response.to_dict())
+                update_data(message_history)
+            else:
+                new = [{"role": "system", "content": "You are a helpful assistant with exciting, interesting things to say."}]
+                message_history[chatid] = new
+                prompt = {"role": "user", "content": msg}
+                message_history[chatid].append(prompt)
+                response = ask_chatgpt(message_history[chatid])
+                print(response['content'])
+                await context.bot.send_message(chat_id=update.message.chat.id, text="{}".format(response['content']),parse_mode='MARKDOWN')
+                message_history[chatid].append(response.to_dict())
+                update_data(message_history)   
         except Exception as e:
             # monitor exception using Rollbar
             print("Error asking ChatGPT", e)
